@@ -1,6 +1,7 @@
 export class user {
     public constructor(teleID : string | number) {
         this.telegramID = teleID.toString();
+        this.vkGroups = [];
     }
     
     public registerDate : Date;
