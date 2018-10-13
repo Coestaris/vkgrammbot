@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "module": "commonjs",
+        "sourceMap": true,
+        "outDir": "out",
+        "baseUrl": ".",
+        "paths": {
+            "*": ["types/*"], "src/*": ["types/*"] 
+        },
+    },
+    "include": [
+        "*.ts", "src/main.ts", "src/db.ts", "src/user.ts", "types/quick.db.d.ts"
+    ],
+}
