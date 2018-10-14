@@ -1,8 +1,7 @@
-import { user } from "./user";
+import { Post } from "./posts/Post";
+import { user } from "./core/user";
 import { listeningType } from "./listeningType";
-import { storeUser, getUser } from "./db";
-//import { getGroupName } from "./vk"
-
+import { storeUser, getUser } from "./core/db";
 import TelegramBot = require('node-telegram-bot-api');
 
 const exampleURL = "https://vk.com/club41670861"
@@ -13,26 +12,36 @@ let currentListening : listeningType = listeningType.GenericCommand;
 
 const MyTelegramBot = new TelegramBot("676086893:AAFPGabadE6_qDJsgKyYcOC8aZRz91pkqxU");
 
-import VK = require('vksdk');
+import vk = require("./core/vk");
+import { mkdir, mkdirSync, writeFileSync, rmdirSync } from "fs";
+import { PhotoPostAttachment } from "./posts/PhotoPostAttachment";
 
-var vk = new VK({
-    'appId'     : 6646136,
-    'appSecret' : 'AbDjGwOMf2yZ8jEV1Hes',
-    'language'  : 'ru'
-});
-
-vk.setSecureRequests(true);
-vk.setToken('0e2db8ca0e2db8ca0e2db8caa90e48d1b200e2d0e2db8ca55701a81eef7af4bcc16930f');
-
-function getGroupName(id : string, callBack : (name : string) => void) : void {
-    
-    vk.request('groups.getById', {'group_id' : id, 'fields' : ['name'] }, function(_o) {
-        callBack(_o.response[0].name);
+var fs = require('fs');
+var request = require('request');
+/*
+vk.getPosts(true, "41670861", 5, 0, (posts) => {
+    posts.forEach(element => {
+        console.log(element.toDebugJSON());
     });
+})
+*/
+MyTelegramBot.startPolling( {restart: true} );
+
+function download(url) {
+    return require('child_process')
+        .execFileSync('curl', ['--silent', '-L', url], {encoding: 'utf8'});
 }
 
+function sendPostMessage(id : number, post : Post) {
+    
+    console.log("send post message call");
+    
+    let group = [];
+    for(let i = 0; i < post.attachments.length; i++)
+        group.push( { type : "photo", media : (post.attachments[i] as PhotoPostAttachment).getOptimalSizeUrl() } )
 
-MyTelegramBot.startPolling( {restart: true} );
+    MyTelegramBot.sendMediaGroup(id, group);
+}
 
 function sendHelpMessage(id : number) {
     MyTelegramBot.sendMessage(
@@ -54,6 +63,7 @@ let Commands = {
     help : "/help",
     start : "/start",
     subscribe : "/subscribe",
+    getPosts : "/getPosts",
     unsubscribe : "/unsubscribe"
 }
 
@@ -69,7 +79,7 @@ MyTelegramBot.onText(new RegExp(Commands.getList), (msg, match) => {
     } else { 
         let msge = "Вы мониторите следующие группы:\n";
         for(let i = 0; i < u.vkGroupsIds.length; i++) {
-            msge += `-"**${u.vkGroupsNames[i]}**" (ID: ${u.vkGroupsIds[i]})\n`
+            msge += `-"*${u.vkGroupsNames[i]}*" (ID: ${u.vkGroupsIds[i]})\n`
         }
 
         MyTelegramBot.sendMessage(msg.from.id, msge, {
@@ -147,7 +157,7 @@ MyTelegramBot.onText(new RegExp(Commands.subscribe), (msg, match) => {
         return;
     }
 
-    getGroupName(id, (name) => {
+    vk.getGroupName(id, (name) => {
 
         if(!name) {
             MyTelegramBot.sendMessage(
@@ -159,7 +169,7 @@ MyTelegramBot.onText(new RegExp(Commands.subscribe), (msg, match) => {
 
         MyTelegramBot.sendMessage(
             msg.from.id,
-            `✅Группа "**${name}**" (ID: ${id}) была добавлена в список ваших групп!`,
+            `✅Группа "*${name}*" (ID: ${id}) была добавлена в список ваших групп!`,
             {
                 parse_mode : "Markdown"
             }
@@ -235,7 +245,7 @@ MyTelegramBot.onText(/^\d{4,} - .+$/, (msg, match) => {
 
         MyTelegramBot.sendMessage(
             msg.from.id,
-            `✅Группа "**${name}**" (ID: ${id}) была удалена со списка ваших групп!`,
+            `✅Группа "*${name}*" (ID: ${id}) была удалена со списка ваших групп!`,
             ({
                 reply_markup : {
                     keyboard : []
@@ -246,4 +256,18 @@ MyTelegramBot.onText(/^\d{4,} - .+$/, (msg, match) => {
     
         currentListening = listeningType.GenericCommand;
     }
+});
+
+MyTelegramBot.onText(new RegExp(Commands.getPosts), (msg, match) => {
+    if(currentListening != listeningType.GenericCommand) {
+        currentListening = listeningType.GenericCommand;
+    }
+
+    let u = getUser(msg.from.id);
+
+    console.log("call");
+
+    vk.getPosts(true, u.vkGroupsIds[0], 5, 0, (posts) => {
+        posts.forEach(post => sendPostMessage(msg.from.id, post));
+    })
 });

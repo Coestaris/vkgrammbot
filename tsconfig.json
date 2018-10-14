@@ -10,6 +10,10 @@
         },
     },
     "include": [
-        "*.ts", "src/main.ts", "src/db.ts", "src/user.ts", "types/quick.db.d.ts", "src/listeningType.ts", "src/listeningType.ts"
+        "*.ts",
+        "./types/*.ts",
+        "./src/*.ts",
+        "./src/core/*.ts",
+        "./src/posts/*.ts"
     ],
 }
