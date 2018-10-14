@@ -67,12 +67,14 @@ MyTelegramBot.onText(new RegExp(Commands.getList), (msg, match) => {
     if(u.vkGroupsIds.length == 0) {
         MyTelegramBot.sendMessage(msg.from.id, `Cписок пуст`);
     } else { 
-        let msge = "Вы мониторите следующие группы:";
+        let msge = "Вы мониторите следующие группы:\n";
         for(let i = 0; i < u.vkGroupsIds.length; i++) {
-            msge += `"${u.vkGroupsNames[i]}" (ID: ${u.vkGroupsIds[i]})\n`
+            msge += `-"**${u.vkGroupsNames[i]}**" (ID: ${u.vkGroupsIds[i]})\n`
         }
 
-        MyTelegramBot.sendMessage(msg.from.id, msge);
+        MyTelegramBot.sendMessage(msg.from.id, msge, {
+            parse_mode : "Markdown"
+        });
     }
 });
 
@@ -147,9 +149,20 @@ MyTelegramBot.onText(new RegExp(Commands.subscribe), (msg, match) => {
 
     getGroupName(id, (name) => {
 
+        if(!name) {
+            MyTelegramBot.sendMessage(
+                msg.from.id, 
+                `⛔️Не было найдено указанной группы в ВК.`
+            );
+            return;
+        }
+
         MyTelegramBot.sendMessage(
             msg.from.id,
-            `✅Группа "${name}" (ID: ${id}) была добавлена в список ваших групп!` 
+            `✅Группа "**${name}**" (ID: ${id}) была добавлена в список ваших групп!`,
+            {
+                parse_mode : "Markdown"
+            }
         );
 
         u.vkGroupsIds.push(id);
@@ -178,7 +191,7 @@ MyTelegramBot.onText(new RegExp(Commands.unsubscribe), (msg, match) => {
     let keyboard = [[]];
 
     for(let i = 0; i < u.vkGroupsIds.length; i++) {
-        keyboard.push([`${u.vkGroupsIds[i]} - ${u.vkGroupsNames[i]}}`]);
+        keyboard.push([`${u.vkGroupsIds[i]} - "${u.vkGroupsNames[i]}"`]);
     }
 
     MyTelegramBot.sendMessage(msg.from.id, "Выберите, от какой группы вы желаете отписаться", 
@@ -222,11 +235,13 @@ MyTelegramBot.onText(/^\d{4,} - .+$/, (msg, match) => {
 
         MyTelegramBot.sendMessage(
             msg.from.id,
-            `✅Группа "${name}" (ID: ${id}) была удалена со списка ваших групп!`,
+            `✅Группа "**${name}**" (ID: ${id}) была удалена со списка ваших групп!`,
             ({
                 reply_markup : {
                     keyboard : []
-            }}) as unknown as TelegramBot.SendMessageOptions
+                },
+                parse_mode : "Markdown"
+            }) as unknown as TelegramBot.SendMessageOptions
         );
     
         currentListening = listeningType.GenericCommand;
