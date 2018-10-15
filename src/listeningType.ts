@@ -1,4 +1,5 @@
 export enum listeningType {
     GenericCommand,
-    GroupToUnsubscribe
+    GroupToUnsubscribe,
+    GroupToGetPosts
 }
