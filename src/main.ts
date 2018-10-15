@@ -1,8 +1,12 @@
-import { Post } from "./posts/Post";
+import * as TelegramBot from 'node-telegram-bot-api';
+import * as vk from "./core/vk";
+import * as Promise from 'bluebird';
+
+import { Post, PostMediaType } from "./posts/Post";
 import { user } from "./core/user";
 import { listeningType } from "./listeningType";
 import { storeUser, getUser } from "./core/db";
-import TelegramBot = require('node-telegram-bot-api');
+import { PhotoPostAttachment } from "./posts/PhotoPostAttachment";
 
 const exampleURL = "https://vk.com/club41670861"
 let IDContainedPublicURL = /(?<=https:\/\/vk\.com\/((club)|(public)))\d{4,}$/gm;
@@ -11,36 +15,42 @@ let PublicID = /^\d{4,}$/;
 let currentListening : listeningType = listeningType.GenericCommand;
 
 const MyTelegramBot = new TelegramBot("676086893:AAFPGabadE6_qDJsgKyYcOC8aZRz91pkqxU");
-
-import vk = require("./core/vk");
-import { mkdir, mkdirSync, writeFileSync, rmdirSync } from "fs";
-import { PhotoPostAttachment } from "./posts/PhotoPostAttachment";
-
-var fs = require('fs');
-var request = require('request');
-/*
-vk.getPosts(true, "41670861", 5, 0, (posts) => {
-    posts.forEach(element => {
-        console.log(element.toDebugJSON());
-    });
-})
-*/
 MyTelegramBot.startPolling( {restart: true} );
 
-function download(url) {
-    return require('child_process')
-        .execFileSync('curl', ['--silent', '-L', url], {encoding: 'utf8'});
-}
-
-function sendPostMessage(id : number, post : Post) {
+function sendPostMessage(id : number, post : Post, groupName : string, groupId : string, callbackFn : () => void) {
     
-    console.log("send post message call");
-    
-    let group = [];
-    for(let i = 0; i < post.attachments.length; i++)
-        group.push( { type : "photo", media : (post.attachments[i] as PhotoPostAttachment).getOptimalSizeUrl() } )
+    let message = `${groupName} (ID: ${groupId})\n${post.date.toUTCString()}\n❤️ ${post.likeCount} | 💬 ${post.commentsCount} | 📢 ${post.repostsCount}`; 
 
-    MyTelegramBot.sendMediaGroup(id, group);
+    if(post.text) {
+        message += `\n\n${post.text}`;
+    }
+
+    if(post.type == PostMediaType.TextAndPhotoVideo || post.type == PostMediaType.PhotoVideoOnly) {
+
+        MyTelegramBot.sendPhoto(id, (post.attachments[0] as PhotoPostAttachment).getOptimalSizeUrl(), 
+        {
+            caption : message, 
+        }).then(callbackFn);
+
+    } else if(post.type == PostMediaType.MultiplePhotoVideo || post.type == PostMediaType.TextAndMultiplePhotoVideo) {
+
+        let group = [];
+        message += '\n\n============='
+        for(let i = 0; i < post.attachments.length; i++) {
+            let photo = (post.attachments[i] as PhotoPostAttachment);
+            group.push( { type : "photo", media : photo.getOptimalSizeUrl() } )
+            message += `\n[Attachment:Photo ${photo.width}x${photo.height}]`;
+
+        } 
+
+        MyTelegramBot.sendMessage(id, message).then(m => {
+            MyTelegramBot.sendMediaGroup(id, group, {
+                reply_to_message_id : m.message_id
+            }).then(callbackFn);
+        });
+
+    }
+
 }
 
 function sendHelpMessage(id : number) {
@@ -205,12 +215,14 @@ MyTelegramBot.onText(new RegExp(Commands.unsubscribe), (msg, match) => {
     }
 
     MyTelegramBot.sendMessage(msg.from.id, "Выберите, от какой группы вы желаете отписаться", 
-    ({
-        reply_markup : {
-            resize_keyboard : true,
-            one_time_keyboard : true,
-            keyboard : keyboard
-    }}) as unknown as TelegramBot.SendMessageOptions);
+        {
+            reply_markup : {
+                resize_keyboard : true,
+                one_time_keyboard : true,
+                keyboard : keyboard
+            }
+        }
+    );
 
     currentListening = listeningType.GroupToUnsubscribe;
 });
@@ -228,10 +240,12 @@ MyTelegramBot.onText(/^\d{4,} - .+$/, (msg, match) => {
             MyTelegramBot.sendMessage(
                 msg.from.id, 
                 `⛔️Группа с данным ID не числится в ваших группах`,
-                ({
-                    reply_markup : {
+                {
+                    reply_markup : 
+                    {
                         keyboard : []
-                }}) as unknown as TelegramBot.SendMessageOptions
+                    }
+                }
             );
             return;
         }
@@ -246,12 +260,12 @@ MyTelegramBot.onText(/^\d{4,} - .+$/, (msg, match) => {
         MyTelegramBot.sendMessage(
             msg.from.id,
             `✅Группа "*${name}*" (ID: ${id}) была удалена со списка ваших групп!`,
-            ({
+            {
                 reply_markup : {
                     keyboard : []
                 },
                 parse_mode : "Markdown"
-            }) as unknown as TelegramBot.SendMessageOptions
+            }
         );
     
         currentListening = listeningType.GenericCommand;
@@ -268,6 +282,20 @@ MyTelegramBot.onText(new RegExp(Commands.getPosts), (msg, match) => {
     console.log("call");
 
     vk.getPosts(true, u.vkGroupsIds[0], 5, 0, (posts) => {
-        posts.forEach(post => sendPostMessage(msg.from.id, post));
+        sendPosts(posts, 0, u.vkGroupsNames[0], u.vkGroupsIds[0], msg.from.id);
     })
 });
+
+function sendPosts(posts : Post[], i : number, name : string, grId : string, teleId : number) {
+    sendPostMessage(teleId, posts[i], name, grId, () => { 
+        if(i != posts.length - 1) sendPosts(posts, i + 1, name, grId, teleId); 
+    });
+}
+
+function forEachPromise(items, fn) {
+    return items.reduce(function (promise, item) {
+        return promise.then(function () {
+            return fn(item);
+        });
+    }, Promise.resolve());
+}

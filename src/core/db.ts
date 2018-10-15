@@ -1,5 +1,5 @@
 import { user } from "./user";
-import db = require('quick.db'); 
+import * as db from 'quick.db'; 
 
 let usersTable = new db.table("users");
 

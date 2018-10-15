@@ -1,7 +1,41 @@
 import { PhotoPostAttachment } from "./PhotoPostAttachment";
 import { PostAttachment } from "./PostAttachment";
+import { AttachmentType } from "./AttachmentType";
+
+export enum PostMediaType
+{
+    Empty,
+
+    PhotoVideoOnly,
+    DocumentOnly,
+    AudioOnly,
+    TextOnly,
+    Unhandled,
+    Mixed,
+
+    TextAndPhotoVideo,
+    TextAndMultiplePhotoVideo,
+    MultiplePhotoVideo,
+
+    TextAndDocument,
+    TextAndMultipleDocuments,
+    MultipleDocuments,
+
+    TextAndAudio,
+    TextAndMultipleAudio,
+    MultipleAudio,
+
+    TextAndUnhadnled,
+    TextAndMultipleUnhadnled,
+    MultipleUnhadnled,
+
+    TextAndMixed
+}
 
 export class Post {
+
+    public type : PostMediaType;
+
     public from_id: string;
     public date: Date;
     public isAd: boolean;
@@ -31,9 +65,9 @@ export class Post {
             this.isPinned = input.is_pinned === 1;
         else this.isPinned = false;
         
+        this.attachments = [];
         if (input.hasOwnProperty('attachments')) 
         {
-            this.attachments = [];
             input.attachments.forEach(attachment => {
                 switch (attachment.type) {
                     case 'photo':
@@ -60,6 +94,46 @@ export class Post {
                 }
             });
         }
+
+        if(this.attachments.length == 0) {
+            this.type = this.text ? PostMediaType.TextOnly : PostMediaType.Empty;
+        } else
+        {
+            if(this.attachments.length == 1) {
+
+                if(this.attachments[0].type == AttachmentType.Photo || this.attachments[0].type == AttachmentType.Video) {
+                    this.type = this.text ? PostMediaType.TextAndPhotoVideo : PostMediaType.PhotoVideoOnly;
+                } else if(this.attachments[0].type == AttachmentType.Doc) {
+                    this.type = this.text ? PostMediaType.TextAndDocument : PostMediaType.DocumentOnly;
+                } else if(this.attachments[0].type == AttachmentType.Audio) {
+                    this.type = this.text ? PostMediaType.TextAndAudio : PostMediaType.AudioOnly;
+                } else {
+                    this.type = this.text ? PostMediaType.TextAndUnhadnled : PostMediaType.Unhandled;
+                }
+            } else {
+
+                if(this.attachments.every(a => a.type == AttachmentType.Photo || a.type == AttachmentType.Video)) {
+                    this.type = this.text ? PostMediaType.TextAndMultiplePhotoVideo : PostMediaType.MultiplePhotoVideo;
+                } else if(this.attachments.every(a => a.type == AttachmentType.Doc)) {
+                    this.type = this.text ? PostMediaType.TextAndMultipleDocuments : PostMediaType.MultipleDocuments;
+                } else if(this.attachments.every(a => a.type == AttachmentType.Audio)) {
+                    this.type = this.text ? PostMediaType.TextAndMultipleAudio : PostMediaType.MultipleAudio;
+                } else if (
+                    this.attachments.every(a => a.type == AttachmentType.Graffiti) ||
+                    this.attachments.every(a => a.type == AttachmentType.App) ||
+                    this.attachments.every(a => a.type == AttachmentType.Note) ||
+                    this.attachments.every(a => a.type == AttachmentType.Page) ||
+                    this.attachments.every(a => a.type == AttachmentType.Poll) ||
+                    this.attachments.every(a => a.type == AttachmentType.URL)
+                ) {
+                    this.type = this.text ? PostMediaType.TextAndMultipleUnhadnled : PostMediaType.TextAndMultipleUnhadnled;
+                } else {
+                    this.type = this.text ? PostMediaType.TextAndMixed : PostMediaType.Mixed;
+                }
+            }
+        }
+
+
         
         if (input.hasOwnProperty('likes') && input.likes.hasOwnProperty('count'))
             this.likeCount = Number(input.likes.count);
