@@ -14,6 +14,9 @@ export function getPosts(fromGroup : boolean, id : string, count : number, offse
 {
     vk.request('wall.get', {'owner_id' : (fromGroup ? -1 : 1) * Number(id), 'count' : count, 'offset' : offset }, function(_o) {
         let posts = new Array<Post>();
+        
+        //console.log(JSON.stringify(_o));
+        
         _o.response.items.forEach(element => {
             posts.push(new Post(element));
         });

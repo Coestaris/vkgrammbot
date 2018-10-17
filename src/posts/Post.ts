@@ -1,6 +1,7 @@
 import { PhotoPostAttachment } from "./PhotoPostAttachment";
 import { PostAttachment } from "./PostAttachment";
 import { AttachmentType } from "./AttachmentType";
+import { LinkPostAttachment } from "./LinkPostAttachment";
 
 export enum PostMediaType
 {
@@ -47,6 +48,15 @@ export class Post {
     public repostsCount: number;
     public commentsCount: number;
     
+    public escapeText() {
+        return this.text
+            .replace("_", "\\_")
+            .replace("*", "\\*")
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+            .replace("`", "\\`");
+    }
+
     public constructor(input: any) {
         if (input.hasOwnProperty('from_id'))
             this.from_id = input.from_id;
@@ -81,7 +91,13 @@ export class Post {
                     case 'audio':
                     case 'doc':
                     case 'graffiti':
+                    
                     case 'url':
+                    case 'link':
+                    {
+                        this.attachments.push(new LinkPostAttachment(attachment.link));
+                        break;
+                    }
                     case 'note':
                     case 'app':
                     case 'poll':
@@ -147,6 +163,7 @@ export class Post {
     
     public toDebugJSON(): String {
         return JSON.stringify({
+            type : this.type,
             from_id: this.from_id,
             date: this.date,
             isAd: this.isAd,

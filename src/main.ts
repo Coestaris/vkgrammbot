@@ -7,6 +7,9 @@ import { user } from "./core/user";
 import { listeningType } from "./listeningType";
 import { storeUser, getUser } from "./core/db";
 import { PhotoPostAttachment } from "./posts/PhotoPostAttachment";
+import { AttachmentType } from './posts/AttachmentType';
+import { PostAttachment } from './posts/PostAttachment';
+import { LinkPostAttachment } from './posts/LinkPostAttachment';
 
 const exampleURL = "https://vk.com/club41670861"
 let IDContainedPublicURL = /(?<=https:\/\/vk\.com\/((club)|(public)))\d{4,}$/gm;
@@ -16,40 +19,101 @@ let PublicID = /^\d{4,}$/;
 const tgBot = new TelegramBot("676086893:AAFPGabadE6_qDJsgKyYcOC8aZRz91pkqxU");
 tgBot.startPolling( {restart: true} );
 
+function getMediaGroup(attachments : PostAttachment[]) : TelegramBot.InputMedia[] {
+
+    let group = new Array<TelegramBot.InputMedia>();
+
+    attachments.forEach(j => {
+        if(j.type == AttachmentType.Photo) {
+            let photo = j as PhotoPostAttachment;
+            group.push( { type : "photo", media : photo.getOptimalSizeUrl() } );
+
+        } else if(j.type == AttachmentType.Video) {
+
+        } else {
+            //TODO
+        }
+    });
+    
+    return group;
+}
+
 function sendPostMessage(id : number, post : Post, groupName : string, groupId : string, callbackFn : () => void) {
     
     let message = `Posted by *${groupName}* (ID: ${groupId})\nat _${post.date.toUTCString()}_.\n❤️ ${post.likeCount} | 💬 ${post.commentsCount} | 📢 ${post.repostsCount}`; 
 
     if(post.text) {
-        message += `\n\n${post.text}`;
+        message += `\n\n${post.escapeText()}`;
     }
 
     if(post.type == PostMediaType.TextAndPhotoVideo || post.type == PostMediaType.PhotoVideoOnly) {
 
-        tgBot.sendPhoto(id, (post.attachments[0] as PhotoPostAttachment).getOptimalSizeUrl()).then((m) =>
+        let url = (post.attachments[0] as PhotoPostAttachment).getOptimalSizeUrl();
+
+        tgBot.sendPhoto(id, url).then((m) =>
             tgBot.sendMessage(id, message, {
                 reply_to_message_id : m.message_id,
-                parse_mode : "Markdown"
+                parse_mode : "Markdown",
+                reply_markup : {
+                    force_reply : true,
+                    remove_keyboard : true
+                }
         }).then(callbackFn));
 
     } else if(post.type == PostMediaType.MultiplePhotoVideo || post.type == PostMediaType.TextAndMultiplePhotoVideo) {
 
-        let group = [];
+        let group = getMediaGroup(post.attachments);
         message += '\n\n============='
-        for(let i = 0; i < post.attachments.length; i++) {
-            let photo = (post.attachments[i] as PhotoPostAttachment);
-            group.push( { type : "photo", media : photo.getOptimalSizeUrl() } )
-            message += `\n[Attachment:Photo ${photo.width}x${photo.height}]`;
-
-        } 
 
         tgBot.sendMediaGroup(id, group).then((m) => 
             tgBot.sendMessage(id, message, {
                 reply_to_message_id : m.message_id,
-                parse_mode : "Markdown"
-        }).then(callbackFn));
-    }
+                parse_mode : "Markdown",
+                reply_markup : {
+                    force_reply : true,
+                    remove_keyboard : true
+                }
+            }
+            ).then(callbackFn));
+    } else if(post.type == PostMediaType.Mixed || post.type == PostMediaType.TextAndMixed) {
 
+        if(post.attachments.some(p => p.type == AttachmentType.URL))
+        {
+            message += '\n\n============='
+            message += "\nPost links: "
+            post.attachments.filter(p => p.type == AttachmentType.URL).forEach(p => {
+                console.log(JSON.stringify(p.toDebugJSON()));
+                
+                message += `\n-[${(p as LinkPostAttachment).title}](${(p as LinkPostAttachment).url})`;
+            });
+        }
+
+        let videoPhoto = post.attachments.filter(p => p.type == AttachmentType.Video || p.type == AttachmentType.Photo);
+        let group;
+        
+        if(videoPhoto.length != 0) {
+            group = getMediaGroup(videoPhoto);
+        }
+
+        videoPhoto.forEach(p => {
+            if(p.type == AttachmentType.Photo) {
+                let photo = p as PhotoPostAttachment;
+                message += `\n\\[Attachment: photo(${photo.width} x ${photo.height})\\]`;
+            } else {
+                
+            }
+        })
+
+        tgBot.sendMediaGroup(id, group).then((m) => 
+            tgBot.sendMessage(id, message, {
+                reply_to_message_id : m.message_id,
+                parse_mode : "Markdown",
+                reply_markup : {
+                    force_reply : true,
+                    remove_keyboard : true
+                }
+            }).then(callbackFn));
+    }
 }
 
 function sendHelpMessage(id : number) {
@@ -220,6 +284,7 @@ tgBot.onText(new RegExp(Commands.unsubscribe), (msg, match) => {
     );
 
     u.currentListening = listeningType.GroupToUnsubscribe;
+    storeUser(u);
 });
 
 tgBot.onText(/^\d{4,} - .+$/, (msg, match) => {
@@ -237,7 +302,7 @@ tgBot.onText(/^\d{4,} - .+$/, (msg, match) => {
                 {
                     reply_markup : 
                     {
-                        keyboard : []
+                        remove_keyboard : true
                     }
                 }
             );
@@ -257,7 +322,7 @@ tgBot.onText(/^\d{4,} - .+$/, (msg, match) => {
             `✅Группа "*${name}*" (ID: ${id}) была удалена со списка ваших групп!`,
             {
                 reply_markup : {
-                    keyboard : []
+                    remove_keyboard : true
                 },
                 parse_mode : "Markdown"
             }
@@ -350,3 +415,11 @@ function forEachPromise(items, fn) {
         });
     }, Promise.resolve());
 }
+
+let lastUpdateTime =  Date.now();
+
+new Date(35).to
+
+setInterval(() => {
+    console.log("Tick");
+}, 3000);
