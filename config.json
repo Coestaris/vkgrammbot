@@ -1,0 +1,18 @@
+{
+    
+    "vkConfig" : {
+        "appID" : 6646136,
+        "appSecret" : "AbDjGwOMf2yZ8jEV1Hes",
+        "language"  : "ru",
+        "acsessToken" : "0e2db8ca0e2db8ca0e2db8caa90e48d1b200e2d0e2db8ca55701a81eef7af4bcc16930f"
+    }, 
+
+    "tgConfig" : {
+        "token" : "676086893:AAFPGabadE6_qDJsgKyYcOC8aZRz91pkqxU"
+    },
+
+    "bot" : {
+        "tickTimeout" : 60000,
+        "timeFormat" : "$%&^"
+    }
+}

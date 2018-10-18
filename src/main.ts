@@ -5,7 +5,7 @@ import * as Promise from 'bluebird';
 import { Post, PostMediaType } from "./posts/Post";
 import { user } from "./core/user";
 import { listeningType } from "./listeningType";
-import { storeUser, getUser } from "./core/db";
+import { storeUser, getUser, getAllUsers, storeTime, getTime } from "./core/db";
 import { PhotoPostAttachment } from "./posts/PhotoPostAttachment";
 import { AttachmentType } from './posts/AttachmentType';
 import { PostAttachment } from './posts/PostAttachment';
@@ -16,7 +16,7 @@ let IDContainedPublicURL = /(?<=https:\/\/vk\.com\/((club)|(public)))\d{4,}$/gm;
 let PublicURL = /(?<=(https:\/\/)?vk\.com\/)(.+)$/gm;
 let PublicID = /^\d{4,}$/;
 
-const tgBot = new TelegramBot("676086893:AAFPGabadE6_qDJsgKyYcOC8aZRz91pkqxU");
+const tgBot = new TelegramBot("");
 tgBot.startPolling( {restart: true} );
 
 function getMediaGroup(attachments : PostAttachment[]) : TelegramBot.InputMedia[] {
@@ -39,6 +39,10 @@ function getMediaGroup(attachments : PostAttachment[]) : TelegramBot.InputMedia[
 }
 
 function sendPostMessage(id : number, post : Post, groupName : string, groupId : string, callbackFn : () => void) {
+
+    if(post.type == PostMediaType.Empty) {
+        return;
+    }
     
     let message = `Posted by *${groupName}* (ID: ${groupId})\nat _${post.date.toUTCString()}_.\n❤️ ${post.likeCount} | 💬 ${post.commentsCount} | 📢 ${post.repostsCount}`; 
 
@@ -46,7 +50,17 @@ function sendPostMessage(id : number, post : Post, groupName : string, groupId :
         message += `\n\n${post.escapeText()}`;
     }
 
-    if(post.type == PostMediaType.TextAndPhotoVideo || post.type == PostMediaType.PhotoVideoOnly) {
+    if(post.type == PostMediaType.TextOnly) {
+
+        tgBot.sendMessage(id, message, {
+            parse_mode : "Markdown",
+            reply_markup : {
+                remove_keyboard : true
+            }
+        }).then(callbackFn);
+
+
+    } else if(post.type == PostMediaType.TextAndPhotoVideo || post.type == PostMediaType.PhotoVideoOnly) {
 
         let url = (post.attachments[0] as PhotoPostAttachment).getOptimalSizeUrl();
 
@@ -64,6 +78,15 @@ function sendPostMessage(id : number, post : Post, groupName : string, groupId :
 
         let group = getMediaGroup(post.attachments);
         message += '\n\n============='
+
+        post.attachments.forEach(element => {
+            if(element.type == AttachmentType.Photo) {
+                let photo = element as PhotoPostAttachment;
+                message += `\n\\[Attachment: photo(${photo.width} x ${photo.height})\\]`;
+            } else {
+
+            }
+        });
 
         tgBot.sendMediaGroup(id, group).then((m) => 
             tgBot.sendMessage(id, message, {
@@ -363,6 +386,10 @@ tgBot.onText(/^\d{4,} - .+$/, (msg, match) => {
     }
 });
 
+tgBot.onText(new RegExp("/tick"), (msg, match) => {
+    tick();
+});
+
 tgBot.onText(new RegExp(Commands.getPosts), (msg, match) => {
     
     let u = getUser(msg.from.id);
@@ -408,18 +435,49 @@ function sendPosts(posts : Post[], i : number, name : string, grId : string, tel
     });
 }
 
-function forEachPromise(items, fn) {
-    return items.reduce(function (promise, item) {
-        return promise.then(function () {
-            return fn(item);
-        });
-    }, Promise.resolve());
+function getUTCNow()
+{
+    var now = new Date();
+    var time = now.getTime();
+    var offset = now.getTimezoneOffset();
+    offset = offset * 60000;
+    return time - offset;
 }
 
-let lastUpdateTime =  Date.now();
-
-new Date(35).to
+let lastUpdateTime = getTime();
+let currentTime = lastUpdateTime;
 
 setInterval(() => {
     console.log("Tick");
-}, 3000);
+    tick();
+}, 60000);
+
+function tick() {
+
+    lastUpdateTime = currentTime;
+    currentTime = getUTCNow();
+    storeTime(lastUpdateTime);
+
+    let users = getAllUsers();
+    users.forEach(user => {
+        console.log(`Proceed user: ${user.telegramID}`);
+        
+        user.vkGroupsIds.forEach((group, index) => {
+            vk.getPosts(true, group, 10, 0, (posts) => {
+                
+                
+                let postsToSend : Post[] = [];
+                
+                posts.forEach(post => {
+                    if(post.date.getTime() >= lastUpdateTime)
+                        postsToSend.push(post);
+                });
+
+                console.log(`Proceed group: ${group}. Posts count: ${posts.length}. Posts to send: ${postsToSend.length}`);
+                
+                if(postsToSend.length != 0) 
+                    sendPosts(postsToSend, 0, user.vkGroupsNames[index], group, Number(user.telegramID));
+            });
+        });
+    })
+}

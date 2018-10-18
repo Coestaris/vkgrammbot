@@ -8,17 +8,17 @@ var vk = new VK({
 });
 
 vk.setSecureRequests(true);
-vk.setToken('0e2db8ca0e2db8ca0e2db8caa90e48d1b200e2d0e2db8ca55701a81eef7af4bcc16930f');
+vk.setToken('');
 
 export function getPosts(fromGroup : boolean, id : string, count : number, offset : number, callbackFunc : (posts : Post[]) => void)
 {
     vk.request('wall.get', {'owner_id' : (fromGroup ? -1 : 1) * Number(id), 'count' : count, 'offset' : offset }, function(_o) {
         let posts = new Array<Post>();
         
-        //console.log(JSON.stringify(_o));
+        console.log(JSON.stringify(_o));
         
         _o.response.items.forEach(element => {
-            posts.push(new Post(element));
+            //posts.push(new Post(element));
         });
 
         callbackFunc(posts);
